@@ -1,11 +1,20 @@
 #!/usr/bin/python3
 
-import stepper_helpers as sh
+#sudo cp move_collimator.py /usr/local/bin/
 
 import os
 import sys
 import argparse
 import shutil
+
+sys.path.insert(0, "/home/pi/Documents/ScanningSystem/atlundiumberry/")
+
+import stepper_helpers as sh
+
+#directory in which this file exists
+#dir_path = os.path.dirname(os.path.realpath(__file__))+"/"
+dir_path = "/home/pi/Documents/ScanningSystem/atlundiumberry/"
+#print("Directory of program:", dir_path)
 
 parser = argparse.ArgumentParser("Specify how many steps that should be taken in as: 'steps_x steps_y'")
 parser.add_argument("-step", dest='steps', type=int, help="steps_x steps_y", nargs=2)
@@ -26,13 +35,13 @@ parser.add_argument("-ResetToOrigin", dest='resetO', action="store_true", help="
 parser.add_argument("-v", dest='view', action="store_true", help="View current settings.")
 args = parser.parse_args()
 
-print(args)
+#print(args)
 
 steps_x = 0
 steps_y = 0
 
 config_file = '.scan.yaml'
-Scan = sh.Scanner(config_file)
+Scan = sh.Scanner(config_file, dir_path)
 
 orig_stdout = sys.stdout
 
@@ -46,16 +55,14 @@ if Scan.ReadSetting("stop"):
     print("EMERGENCY STOP ACTIVATED!")
     sys.exit(2)
 
-#sys.stdout = f_log
+sys.stdout = f_log
 
 if len(sys.argv)==1:
     print("is_file=", Scan.ReadSetting("is_file"))
     if Scan.ReadSetting("is_file"):
         x, y = Scan.ReadCoordsFile()
         if x == None and y == None:
-            Scan.ChangeSetting("is_file", 0)
-            os.remove("temp."+Scan.ReadSetting("read_file")+".scan")
-            sys.exit()
+            Scan.Finished()
         steps_x, steps_y = Scan.PosEval(x, y)
         if steps_x == 0 and steps_y == 0:
             Scan.PerformedMove()
@@ -67,7 +74,7 @@ if len(sys.argv)==1:
 if args.tdk:
     print("Setting up power supply communication ")
     #os.system("echo 'Setting up tdk-lambda'")
-    os.system("./power_set setup")
+    os.system(Scan.dir_path+"power_set setup")
     Scan.ChangeSetting("is_power_com", 1)
 
 if args.no_tdk:
@@ -76,7 +83,7 @@ if args.no_tdk:
 
 if args.view:
     print("\nCurrent settings are:")
-    os.system("cat " + config_file)
+    os.system("cat " + Scan.dir_path+Scan.config_file)
     print("")
 
 if args.clear_log:
@@ -89,7 +96,7 @@ if args.coords:
 
 if args.stop:
     print("\n Emergency stop with current settings:")
-    os.system("cat " + config_file)
+    os.system("cat " + Scan.dir_path+Scan.config_file)
     Scan.ChangeSetting("stop", 1)
     print("")
     sys.exit(2)
@@ -121,7 +128,7 @@ if args.file_xy:
     print("Setting file to read from:", args.file_xy)
     Scan.ChangeSetting("is_file", 1)
     Scan.ChangeSetting("read_file", args.file_xy[0])
-    shutil.copyfile(args.file_xy[0]+".scan", "temp."+args.file_xy[0]+".scan")
+    shutil.copyfile(Scan.dir_path+args.file_xy[0]+".scan", "temp."+args.file_xy[0]+".scan")
 
 if args.no_file:
     print("Deactivating read file")
@@ -164,16 +171,16 @@ MODE = gb.MODE_STEPG_OFF          # stepper control, gray code
 #        25=step pulse powered
 FREQ = Scan.ReadSetting("freq")        # frequency
 
-print("Set frequency is:", FREQ)
+#print("Set frequency is:", FREQ)
 
 # Main program
 
 # Open serial port to talk to Gertbot
-print("Opening serial port ...")
+#print("Opening serial port ...")
 gb.open_uart(0)
 
 # Setup the channels for stepper motors
-print("Setting up channels for stepper motors ...")
+#print("Setting up channels for stepper motors ...")
 gb.set_mode(BOARD,STEPPER_Y,MODE)
 gb.freq_stepper(BOARD,STEPPER_Y,FREQ)
 gb.set_mode(BOARD,STEPPER_X,MODE)
@@ -207,23 +214,20 @@ else:
     print("Sleeping: ", abs(float(steps_x/FREQ)), "s")
     time.sleep(abs(float(steps_x/FREQ)))
 
-if Scan.ReadSetting("is_file"):
-    Scan.PerformedMove()
-
 #Checking status after move for both motors and aborts if anything is wrong.
 #This is somewhat unclear still
-motor_status = gb.get_motor_status(BOARD, STEPPER_Y)
-print("Motor status Y: ", motor_status) 
-if steps_y != 0 and any(motor_status) != 0:
-    print("There was a motor error/end stop reached for motor Y. - The run is aborted.")
+#motor_status = gb.get_motor_status(BOARD, STEPPER_Y)
+#print("Motor status Y: ", motor_status) 
+#if steps_y != 0 and any(motor_status) != 0:
+#    print("There was a motor error/end stop reached for motor Y. - The run is aborted.")
+#
+#motor_status = gb.get_motor_status(BOARD, STEPPER_X)
+#print("Motor status X: ", motor_status)
+#if steps_x != 0 and any(motor_status) != 0:
+#    print("There was a motor error/end stop reached for motor X. - The run is aborted.")
 
-motor_status = gb.get_motor_status(BOARD, STEPPER_X)
-print("Motor status X: ", motor_status)
-if steps_x != 0 and any(motor_status) != 0:
-    print("There was a motor error/end stop reached for motor X. - The run is aborted.")
-
-status = gb.get_io_setup(BOARD)
-print("Status: ", status)
+#status = gb.get_io_setup(BOARD)
+#print("Status: ", status)
 
 missed_y = gb.get_motor_missed(BOARD, STEPPER_Y)
 missed_x = gb.get_motor_missed(BOARD, STEPPER_X)
@@ -241,7 +245,7 @@ if args.resetO:
     print("RESETTING to (0,0)")
     Scan.ChangeSetting("pos", [0, 0])
 
-print("Reading error status ...")
+#print("Reading error status ...")
 status = gb.read_error_status(BOARD)
 print("Status received ...")
 if status != 0:
@@ -256,6 +260,9 @@ gb.set_mode(BOARD,STEPPER_X,MODE)
 if Scan.ReadSetting("is_power_com"):
     print("Deactivating power")
     Scan.SetPower("OUT 0")
+
+if Scan.ReadSetting("is_file"):
+    Scan.PerformedMove()
 
 f_log.close()
 sys.stdout = orig_stdout
