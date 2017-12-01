@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Args: $1 $2 $3"
+echo "power_set args: $1 $2 $3"
 if [ "$1" == "setup" ]; then
 	cp /dev/null power.log
 	sudo chmod o+rw /dev/ttyUSB0

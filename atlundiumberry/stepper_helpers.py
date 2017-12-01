@@ -11,6 +11,7 @@ Step-accuracy: +- 0.05 deg (rotarystepper catalogue)
 import sys
 import numpy as np
 import os
+import shutil
 
 import yaml
 
@@ -99,30 +100,30 @@ class Scanner:
 
     #Invoked every time the collimator has moved and we are reading from file.
     def PerformedMove(self):
-        print(self.ReadSetting("read_file"))
-        with open(self.dir_name+"temp."+self.ReadSetting("read_file")+".scan", 'r') as f_in:
+        #print(self.ReadSetting("read_file"))
+        with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'r') as f_in:
             content = f_in.readlines()
         with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'w') as f_out:
             f_out.seek(0, 0)
             f_out.writelines(content[1:])
         print("Removing .pause_scan @rio4-1")
-        os.system("ssh mbsdaq@rio4-1 'rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan'")
+        os.system("ssh mbsdaq@rio4-1 -f \"rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan\"")
 
     #Invoked when a full scan is finished.
     def Finished(self):
-        Scan.ChangeSetting("is_file", 0)
-        os.remove(Scan.dir_path+"temp."+Scan.ReadSetting("read_file")+".scan")
-        os.system("ssh mbsdaq@rio4-1 'rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan'")
-        os.system("ssh mbsdaq@rio4-1 'touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan'")
+        self.ChangeSetting("is_file", 0)
+        os.remove(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan")
+        #os.system("ssh mbsdaq@rio4-1 'rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan; touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan'")
+        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan\"")
         name = self.ReadSetting("read_file")
-        sys_comm = "ssh mbsdaq@rio4-1 'mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"'"
+        sys_comm = "ssh mbsdaq@rio4-1 -f \"mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"\""
         os.system(sys_comm)
-        sys_comm = "scp "+self.dir_path+"stepper.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
         os.system(sys_comm)
-        sys_comm = "scp "+self.dir_path+"coords.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
-        os.system(sys_comm)
-        sys_comm = "scp "+self.dir_path+"power.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
-        os.system(sys_comm)
+        #sys_comm = "scp "+self.dir_path+"coords.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        #os.system(sys_comm)
+        #sys_comm = "scp "+self.dir_path+"power.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        #os.system(sys_comm)
 
         self.ChangeSetting("is_file", 0)
         self.ChangeSetting("is_power_com", 0)
@@ -145,6 +146,38 @@ class Scanner:
                         f.write(str(x[-j-1])+' '+str(y[i])+'\n')
                     else:
                         f.write(str(x[j])+' '+str(y[i])+'\n')
+    
+    #Calculates the time the program should sleep on the basis of the amount of steps in x & y and the frequency.
+    def GetSleep(self, steps_x, steps_y):
+        sleepy = 0
+        FREQ = self.ReadSetting("freq")
+        if abs(steps_y) > abs(steps_x):
+            sleepy = abs(float(steps_y/FREQ))
+        else:
+            sleepy = abs(float(steps_x/FREQ))
+        return sleepy
+
+    #Calculates the number of missed steps in either x or y. Missed steps can occur when endstops are reached.
+    def GetMissed(self, steps_xy, missed_xy):
+        m_xy = float(missed_xy[0])
+        if steps_xy < 0:
+            m_xy = -float(missed_xy[0])
+        return m_xy
+
+    #If any steps are missed during a scan this is invoked which cancels all DAQ
+    def AbortScan(self):
+        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
+        #Should send data to. Perhaps even send a notification!
+
+    def ResetCoordFile(self, index):
+        index = int(index[0])
+        shutil.copyfile(self.dir_path+self.ReadSetting("read_file")+".scan", self.dir_path+"temp."+self.ReadSetting("read_file")+".scan")
+        with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'r') as f_in:
+            content = f_in.readlines()
+        with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'w') as f_out:
+            f_out.seek(0, 0)
+            f_out.writelines(content[index:])
+
 
 if __name__ == '__main__':
     dir_path = "/home/pi/Documents/ScanningSystem/atlundiumberry/"

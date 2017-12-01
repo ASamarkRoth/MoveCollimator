@@ -32,6 +32,7 @@ parser.add_argument("-clear_coords", dest='coords', action="store_true", help="C
 parser.add_argument("-clear_log", dest='clear_log', action="store_true", help="Clear the stepper log-file.")
 parser.add_argument("-ON", dest='on', action="store_true", help="Deactivate emergency stop.")
 parser.add_argument("-ResetToOrigin", dest='resetO', action="store_true", help="Reset coordinates to origin, i.e. where sensors at (x0, y0) activate.")
+parser.add_argument("-ResetToIndex", dest='c_index', nargs=1, help="Reset the coordinate file to the index corresponding to the desired read file @rio4-1. If power communication and reading from file is not set they will be activated. OBS, it resets to the lastly written (not finished) file.")
 parser.add_argument("-v", dest='view', action="store_true", help="View current settings.")
 args = parser.parse_args()
 
@@ -55,10 +56,10 @@ if Scan.ReadSetting("stop"):
     print("EMERGENCY STOP ACTIVATED!")
     sys.exit(2)
 
-sys.stdout = f_log
+#sys.stdout = f_log
 
 if len(sys.argv)==1:
-    print("is_file=", Scan.ReadSetting("is_file"))
+    #print("is_file=", Scan.ReadSetting("is_file"))
     if Scan.ReadSetting("is_file"):
         x, y = Scan.ReadCoordsFile()
         if x == None and y == None:
@@ -105,6 +106,14 @@ if args.resetO:
     steps_x, steps_y = Scan.PosEval(-1, -1)
     print("Resetting to position (0, 0)", "Stepping [x, y]: [", steps_x,", ",steps_y,"]")
 
+if args.c_index:
+    print("Resetting the coordinate file to index: ", args.c_index)
+    Scan.ResetCoordFile(args.c_index)
+    print("Ensuring read from file and power communication is activated ...")
+    Scan.ChangeSetting("is_file", 1)
+    os.system(Scan.dir_path+"power_set setup")
+    Scan.ChangeSetting("is_power_com", 1)
+
 if args.freq:
     print("Setting frequency to: ", args.freq)
     Scan.ChangeSetting("freq", args.freq)
@@ -125,10 +134,13 @@ if args.new_xy:
     sys.exit()
 
 if args.file_xy:
-    print("Setting file to read from:", args.file_xy)
+    print("Setting file to read from:", args.file_xy[0])
     Scan.ChangeSetting("is_file", 1)
     Scan.ChangeSetting("read_file", args.file_xy[0])
-    shutil.copyfile(Scan.dir_path+args.file_xy[0]+".scan", "temp."+args.file_xy[0]+".scan")
+    os.system("> coords.log")
+    os.system("> power.log")
+    os.system("> stepper.log")
+    shutil.copyfile(Scan.dir_path+args.file_xy[0]+".scan", Scan.dir_path+"temp."+args.file_xy[0]+".scan")
 
 if args.no_file:
     print("Deactivating read file")
@@ -147,9 +159,12 @@ if steps_x == 0 and steps_y == 0:
     print("Exiting since no steps set")
     sys.exit()
 
-#print("Stepping [x, y]: [", steps_x,", ",steps_y,"]")
+if not Scan.ReadSetting("is_power_com"):
+    print("Power communication have not been set. Doing that now...")
+    os.system(Scan.dir_path+"power_set setup")
+    Scan.ChangeSetting("is_power_com", 1)
 
-#pos_eval(0,0)
+print("Stepping [x, y]: [", steps_x,", ",steps_y,"]")
 
 import time
 
@@ -195,7 +210,12 @@ gb.freq_stepper(BOARD,STEPPER_X,FREQ)
 #def set_endstop (board,channel,stop_A,stop_B)
 
 gb.set_endstop(BOARD, STEPPER_Y, gb.ENDSTOP_LOW, gb.ENDSTOP_LOW)
-gb.set_endstop(BOARD, STEPPER_X, gb.ENDSTOP_OFF, gb.ENDSTOP_LOW)
+gb.set_endstop(BOARD, STEPPER_X, gb.ENDSTOP_LOW, gb.ENDSTOP_LOW)
+
+sleepy = Scan.GetSleep(steps_x, steps_y)
+
+s_out = "echo \"Invoking move. Duration: "+str(sleepy)+" s ...\""
+os.system(s_out)
 
 if Scan.ReadSetting("is_power_com"):
     print("Activating power")
@@ -206,13 +226,6 @@ if Scan.ReadSetting("is_power_com"):
 print("Invoking move ...")
 gb.move_stepper(BOARD,STEPPER_Y,steps_y)
 gb.move_stepper(BOARD,STEPPER_X,steps_x)
-
-if abs(steps_y) > abs(steps_x):
-    print("Sleeping: ", abs(float(steps_y/FREQ)), "s")
-    time.sleep(abs(float(steps_y/FREQ)))
-else:
-    print("Sleeping: ", abs(float(steps_x/FREQ)), "s")
-    time.sleep(abs(float(steps_x/FREQ)))
 
 #Checking status after move for both motors and aborts if anything is wrong.
 #This is somewhat unclear still
@@ -229,19 +242,35 @@ else:
 #status = gb.get_io_setup(BOARD)
 #print("Status: ", status)
 
+print("Now sleeping "+str(sleepy)+" s ...")
+time.sleep(sleepy)
+
 missed_y = gb.get_motor_missed(BOARD, STEPPER_Y)
 missed_x = gb.get_motor_missed(BOARD, STEPPER_X)
-print("Missed X,Y: ", missed_x, missed_y)
+m_x = Scan.GetMissed(steps_x, missed_x)
+m_y = Scan.GetMissed(steps_y, missed_y)
+#print("Missed X,Y: ", missed_x, missed_y)
+print("Missed X,Y: ", m_x, m_y)
 
-x, y = Scan.ReadSetting("pos")
-m_x, m_y = float(missed_x[0]), float(missed_y[0])
-if steps_x < 0:
-    m_x = -float(missed_x[0])
-if steps_y < 0:
-    m_y = -float(missed_y[0])
 Scan.SetRealPosition(steps_x-m_x, steps_y-m_y)
 
 if args.resetO:
+    #Due to some error, we might not be at real (x0, y0) -> looping here till missed > 0
+    while m_x == 0 or m_y == 0:
+        steps_x, steps_y = Scan.PosEval(-5, -5)
+        if m_x == 0:
+            gb.move_stepper(BOARD,STEPPER_X,steps_x)
+        if m_y == 0:
+            gb.move_stepper(BOARD,STEPPER_Y,steps_y)
+        sleepy = Scan.GetSleep(steps_x, steps_y)
+        time.sleep(sleepy)
+        if m_x == 0: 
+            missed_x = gb.get_motor_missed(BOARD, STEPPER_X)
+            m_x = Scan.GetMissed(steps_x, missed_x)
+        if m_y == 0:
+            missed_y = gb.get_motor_missed(BOARD, STEPPER_Y)
+            m_y = Scan.GetMissed(steps_y, missed_y)
+
     print("RESETTING to (0,0)")
     Scan.ChangeSetting("pos", [0, 0])
 
@@ -256,13 +285,17 @@ else:
 
 # Added this to avoid motor going into pwr state after end-stop activation.
 gb.set_mode(BOARD,STEPPER_X,MODE)
+gb.set_mode(BOARD,STEPPER_Y,MODE)
 
 if Scan.ReadSetting("is_power_com"):
     print("Deactivating power")
     Scan.SetPower("OUT 0")
 
 if Scan.ReadSetting("is_file"):
-    Scan.PerformedMove()
+    if m_x > 0 or m_y > 0:
+        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
+    else:
+        Scan.PerformedMove()
 
 f_log.close()
 sys.stdout = orig_stdout
