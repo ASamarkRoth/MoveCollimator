@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+# DO NOT FORGET TO COPY IT!!!!!!
 #sudo cp move_collimator.py /usr/local/bin/
 
 import os
@@ -30,6 +31,7 @@ parser.add_argument("-no_power_com", dest='no_tdk', action="store_true", help="I
 parser.add_argument("-STOP", dest='stop', action="store_true", help="Emergency stop the scanning!")
 parser.add_argument("-clear_coords", dest='coords', action="store_true", help="Clear the coordinate (coords.log) file.")
 parser.add_argument("-clear_log", dest='clear_log', action="store_true", help="Clear the stepper log-file.")
+parser.add_argument("-clear_logs", dest='clear_logs', action="store_true", help="Clear ALL log-files.")
 parser.add_argument("-ON", dest='on', action="store_true", help="Deactivate emergency stop.")
 parser.add_argument("-ResetToOrigin", dest='resetO', action="store_true", help="Reset coordinates to origin, i.e. where sensors at (x0, y0) activate.")
 parser.add_argument("-ResetToIndex", dest='c_index', nargs=1, help="Reset the coordinate file to the index corresponding to the desired read file @rio4-1. If power communication and reading from file is not set they will be activated. OBS, it resets to the lastly written (not finished) file.")
@@ -75,7 +77,7 @@ if len(sys.argv)==1:
 if args.tdk:
     print("Setting up power supply communication ")
     #os.system("echo 'Setting up tdk-lambda'")
-    os.system(Scan.dir_path+"power_set setup")
+    os.system(Scan.dir_path+"power_set setup &")
     Scan.ChangeSetting("is_power_com", 1)
 
 if args.no_tdk:
@@ -90,6 +92,12 @@ if args.view:
 if args.clear_log:
     print("Clearing stepper log file: \"stepper.log\"")
     os.system("cp /dev/null stepper.log")
+
+if args.clear_logs:
+    print("Clearing log files: \"stepper.log\", \"coords.log\" and \"power.log\"")
+    os.system("cp /dev/null stepper.log")
+    os.system("cp /dev/null coords.log")
+    os.system("cp /dev/null power.log")
 
 if args.coords:
     print("Clearing coordinate log file: \"coords.log\"")
@@ -157,7 +165,7 @@ if args.xy:
 
 if steps_x == 0 and steps_y == 0: 
     print("Exiting since no steps set")
-    sys.exit()
+    sys.exit(0)
 
 if not Scan.ReadSetting("is_power_com"):
     print("Power communication have not been set. Doing that now...")
@@ -293,12 +301,15 @@ if Scan.ReadSetting("is_power_com"):
 
 if Scan.ReadSetting("is_file"):
     if m_x > 0 or m_y > 0:
-        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
+        Scan.ForkProcCmd("ssh mbsdaq@rio4-1 \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
     else:
         Scan.PerformedMove()
 
 f_log.close()
 sys.stdout = orig_stdout
+
+#Seems necessary for the ssh session to end?
+sys.exit(0)
 
 # on exit stop everything
 #gb.emergency_stop()

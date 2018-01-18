@@ -106,20 +106,23 @@ class Scanner:
         with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'w') as f_out:
             f_out.seek(0, 0)
             f_out.writelines(content[1:])
-        print("Removing .pause_scan @rio4-1")
-        os.system("ssh mbsdaq@rio4-1 -f \"rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan\"")
+        #print("Removing .pause_scan @rio4-1")
+        #os.system("ssh mbsdaq@rio4-1 \"rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan\"")
 
     #Invoked when a full scan is finished.
     def Finished(self):
         self.ChangeSetting("is_file", 0)
-        os.remove(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan")
+        try:
+            os.remove(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan")
+        except FileNotFoundError:
+            print("Ops, could not remove temp file as it does not exist")
         #os.system("ssh mbsdaq@rio4-1 'rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan; touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan'")
-        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan\"")
+        self.ForkProcCmd("ssh mbsdaq@rio4-1 \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan\"")
         name = self.ReadSetting("read_file")
-        sys_comm = "ssh mbsdaq@rio4-1 -f \"mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"\""
-        os.system(sys_comm)
-        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
-        os.system(sys_comm)
+        sys_comm = "ssh mbsdaq@rio4-1 \"mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"\""
+        self.ForkProcCmd(sys_comm)
+        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+self.dir_path+name".scan "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        self.ForkProcCmd(sys_comm)
         #sys_comm = "scp "+self.dir_path+"coords.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
         #os.system(sys_comm)
         #sys_comm = "scp "+self.dir_path+"power.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
@@ -166,7 +169,7 @@ class Scanner:
 
     #If any steps are missed during a scan this is invoked which cancels all DAQ
     def AbortScan(self):
-        os.system("ssh mbsdaq@rio4-1 -f \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
+        self.ForkProcCmd("ssh mbsdaq@rio4-1 \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
         #Should send data to. Perhaps even send a notification!
 
     def ResetCoordFile(self, index):
@@ -177,6 +180,20 @@ class Scanner:
         with open(self.dir_path+"temp."+self.ReadSetting("read_file")+".scan", 'w') as f_out:
             f_out.seek(0, 0)
             f_out.writelines(content[index:])
+
+    def ForkProcCmd(self, cmd):
+        pid = os.fork()
+        if pid == -1:
+            print("Failed to fork!")
+            sys.exit(1)
+        if pid == 0:
+            print("Child cmd:", cmd)
+            os.system(cmd)
+            print("Child exiting")
+            sys.exit(0)
+        else:
+            os.waitpid(pid, 0)
+            print("Parent, done")
 
 
 if __name__ == '__main__':
