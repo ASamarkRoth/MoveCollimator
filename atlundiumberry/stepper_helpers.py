@@ -121,7 +121,7 @@ class Scanner:
         name = self.ReadSetting("read_file")
         sys_comm = "ssh mbsdaq@rio4-1 \"mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"\""
         self.ForkProcCmd(sys_comm)
-        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+self.dir_path+name".scan "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+self.dir_path+name+".scan "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
         self.ForkProcCmd(sys_comm)
         #sys_comm = "scp "+self.dir_path+"coords.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
         #os.system(sys_comm)
@@ -142,13 +142,15 @@ class Scanner:
     def GenerateSwipeFile(self, s):
         x = np.arange(float(s[1]), float(s[2]) + float(s[3]), float(s[3]))
         y = np.arange(float(s[4]), float(s[5]) + float(s[6]), float(s[6]))
+        print("x=",x)
+        print("y=",y)
         with open(self.dir_path+s[0]+'.scan', 'w') as f:
             for i in range(len(x)):
                 for j in range(len(y)):
                     if i%2 == 1: 
-                        f.write(str(x[-j-1])+' '+str(y[i])+'\n')
+                        f.write(str(x[i])+' '+str(y[-j-1])+'\n')
                     else:
-                        f.write(str(x[j])+' '+str(y[i])+'\n')
+                        f.write(str(x[i])+' '+str(y[j])+'\n')
     
     #Calculates the time the program should sleep on the basis of the amount of steps in x & y and the frequency.
     def GetSleep(self, steps_x, steps_y):

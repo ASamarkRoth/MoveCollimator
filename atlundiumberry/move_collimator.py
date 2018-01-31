@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 
-# DO NOT FORGET TO COPY IT!!!!!!
-#sudo cp move_collimator.py /usr/local/bin/
-
+#Run make to update
 import os
 import sys
 import argparse
