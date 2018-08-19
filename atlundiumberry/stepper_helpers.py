@@ -15,6 +15,10 @@ import shutil
 
 import yaml
 
+DAQ_PWD = "/LynxOS/mbsusr/mbsdaq/mbsrun/Fl_1819_mbsdaq_unkaputt/mbs/"
+SSH_ADR = " mbsdaq@lipc-1"
+SSH = "ssh "
+
 class Scanner:
 
     #Initialises class
@@ -117,11 +121,11 @@ class Scanner:
         except FileNotFoundError:
             print("Ops, could not remove temp file as it does not exist")
         #os.system("ssh mbsdaq@rio4-1 'rm /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.pause_scan; touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan'")
-        self.ForkProcCmd("ssh mbsdaq@rio4-1 \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.finished_scan\"")
+        self.ForkProcCmd(SSH + SSH_ADR + " \"touch "+ DAQ_PWD + ".finished_scan\"")
         name = self.ReadSetting("read_file")
-        sys_comm = "ssh mbsdaq@rio4-1 \"mkdir -p /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"\""
+        sys_comm = SSH + SSH_ADR + " \"mkdir -p " + DAQ_PWD + "/scan/"+name+"\""
         self.ForkProcCmd(sys_comm)
-        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+self.dir_path+name+".scan "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
+        sys_comm = "scp "+self.dir_path+"stepper.log "+self.dir_path+"coords.log "+self.dir_path+"power.log "+self.dir_path+name+".scan "+SSH_ADR + ":" + DAQ_PWD + "scan/"+name+"/"
         self.ForkProcCmd(sys_comm)
         #sys_comm = "scp "+self.dir_path+"coords.log "+"mbsdaq@rio4-1:/nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/scan/"+name+"/"
         #os.system(sys_comm)
@@ -145,10 +149,10 @@ class Scanner:
         print("x=",x)
         print("y=",y)
         with open(self.dir_path+s[0]+'.scan', 'w') as f:
-            for i in range(len(x)):
-                for j in range(len(y)):
-                    if i%2 == 1: 
-                        f.write(str(x[i])+' '+str(y[-j-1])+'\n')
+            for j in range(len(y)):
+                for i in range(len(x)):
+                    if j%2 == 1: 
+                        f.write(str(x[-i-1])+' '+str(y[j])+'\n')
                     else:
                         f.write(str(x[i])+' '+str(y[j])+'\n')
     
@@ -171,7 +175,7 @@ class Scanner:
 
     #If any steps are missed during a scan this is invoked which cancels all DAQ
     def AbortScan(self):
-        self.ForkProcCmd("ssh mbsdaq@rio4-1 \"touch /nfs/mbsusr/mbsdaq/mbsrun/Scanner/mbs/vme_0/.abort_scan\"")
+        self.ForkProcCmd(SSH + SSH_ADR + " \"touch " + DAQ_PWD + ".abort_scan\"")
         #Should send data to. Perhaps even send a notification!
 
     def ResetCoordFile(self, index):
