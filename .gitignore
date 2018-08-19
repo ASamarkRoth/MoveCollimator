@@ -1,4 +1,5 @@
-.*
-!.gitignore
-software_control/2017-04-10-raspbian-jessie.zip
-!/atlundiumberry/.scanning.xy
+.*.sw*
+*.pyc
+stepper.log
+power.log
+coords.log

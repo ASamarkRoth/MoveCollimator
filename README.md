@@ -1,25 +1,12 @@
-# Development and and instructions of the Lund HPGe Scanning System #
+# Software to control stepper motors from the raspberry pi
 
-This repository holds all the information regarding the development and instructions of the Lund HPGe Scanning System. 
+The main program is `move_collimator.py` and for information on how to run it execute: 
 
-The _How to_ set up the system description is presented in `setting_up.pdf`. 
+```bash
+move_collimator.py -h 
+```
 
-The software to run the scanning system can be found in `atlundiumberry/`. 
-The program should be run through the ScanningComputer which comprise the Raspberry Pi and Gertbot and is able to control the movement of the collimator. 
+The program is comprised from the files: 
 
-Other than that, the folder names should be rather explanatory. 
-
-## TO DO ##
-
-* Install hooks and configure a proper use. How?
-* Monitor laser range finder options and z-coordinate measure possibilities. 
-
-
-* Test the swipe-scan procedure. 
-* Configure Data AQuisition with the xy-scanning. I.e.
-  * Do we get proper data?
-  * How much data is sufficient for each point? 
-  * How fine should the scanning grid be?
-  * How do we maintain the data?
-* Bias detector with the ISEG-control (set ramp speed).
-* Perform a full surface scan of the detector. 
+* `move_collimator.py`: main
+* `stepper_helpers.py`: import
